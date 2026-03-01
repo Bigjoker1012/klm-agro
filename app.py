@@ -2,68 +2,86 @@ import streamlit as st
 import pandas as pd
 import re
 
-# 1. Настройки страницы
+# 1. Настройки страницы и стили СОТ
 st.set_page_config(page_title="КЛМ Справочник", layout="wide")
 
-# 2. Исправленный CSS (учитывает и ПК, и Андроид)
 st.markdown("""
     <style>
-    .stApp { background-color: #f4f7f9; }
-    .block-container { padding: 1rem !important; }
+    .stApp { background-color: #f0f2f6; }
     
-    /* Сетка для ПК: по 4 в ряд */
-    [data-testid="column"] {
-        flex: 1 1 calc(25% - 1rem) !important;
-        min-width: 280px !important;
+    /* Контейнер для сот */
+    .honeycomb {
+        display: flex; flex-wrap: wrap; justify-content: center;
+        max-width: 1000px; margin: 0 auto; padding-top: 50px;
     }
-
-    /* АДАПТИВНОСТЬ ДЛЯ АНДРОИДА: если экран меньше 800px — 1 в ряд */
-    @media (max-width: 800px) {
-        [data-testid="column"] {
-            flex: 1 1 100% !important;
-            width: 100% !important;
-        }
-        .card { min-height: auto !important; margin-bottom: 20px !important; }
+    
+    /* Сама сота (отдел) */
+    .hex {
+        width: 150px; height: 170px; background: #007bff;
+        clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+        display: flex; align-items: center; justify-content: center;
+        text-align: center; color: white; font-weight: bold;
+        margin: 5px; transition: 0.3s; cursor: pointer;
+        padding: 15px; font-size: 14px; line-height: 1.2;
     }
-
+    .hex:hover { transform: scale(1.1); background: #0056b3; z-index: 10; }
+    
+    /* Кнопка микрофона */
+    .mic-container {
+        position: fixed; bottom: 30px; right: 30px; z-index: 1000;
+    }
+    .mic-btn {
+        width: 70px; height: 70px; background: #ff4b4b; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3); cursor: pointer; border: none;
+    }
+    
+    /* Карточки сотрудников (адаптив) */
     .card {
-        background: white; border-radius: 12px; padding: 15px;
-        border: 1px solid #e0e0e0; text-align: center;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-        margin-bottom: 15px; min-height: 415px;
-        display: flex; flex-direction: column;
+        background: white; border-radius: 15px; padding: 20px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05); text-align: center;
+        margin-bottom: 20px; border: 1px solid #eee;
     }
     .img-circle {
-        width: 115px; height: 115px; border-radius: 50%;
-        object-fit: cover; border: 3px solid #f0f2f5;
-        margin: 0 auto 10px auto; display: block;
-        background-color: #f8f9fa;
+        width: 100px; height: 100px; border-radius: 50%;
+        object-fit: cover; margin-bottom: 10px; border: 3px solid #f0f2f5;
     }
-    .name { font-size: 15px; font-weight: bold; margin-bottom: 2px; color: #1e1e1e; min-height: 38px; display: flex; align-items: center; justify-content: center; line-height: 1.2; }
-    .job { font-size: 11px; color: #757575; height: 32px; overflow: hidden; margin-bottom: 12px; line-height: 1.2; }
-    
-    .btn {
-        display: block; width: 100%; padding: 8px 0; margin-top: 5px;
-        border-radius: 6px; font-size: 13px; font-weight: bold;
-        text-decoration: none !important; color: white !important;
-        text-align: center; height: 35px; line-height: 20px;
-    }
-    .b-call { background-color: #007bff; }
-    .b-wa { background-color: #28a745; }
-    .b-tg { background-color: #0088cc; }
-    .b-mail { background-color: #6c757d; }
-    .b-none { background-color: #f8f9fa; color: #ced4da !important; border: 1px solid #eee; }
     </style>
     """, unsafe_allow_html=True)
 
-def get_photo(url):
-    placeholder = "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"
-    if pd.isna(url) or str(url).strip() == "": return placeholder
-    match = re.search(r'[-\w]{25,}', str(url))
-    if match:
-        return f"https://lh3.googleusercontent.com/d/{match.group()}"
-    return placeholder
+# 2. Голосовой движок (JavaScript)
+st.components.v1.html("""
+    <script>
+    const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+    recognition.lang = 'ru-RU';
+    recognition.continuous = false;
 
+    function startListening() {
+        const btn = document.getElementById('mic-icon');
+        btn.style.background = '#28a745';
+        recognition.start();
+    }
+
+    recognition.onresult = (event) => {
+        const text = event.results[0][0].transcript.toLowerCase();
+        window.parent.postMessage({type: 'streamlit:set_widget_value', key: 'voice_input', value: text}, '*');
+        document.getElementById('mic-icon').style.background = '#ff4b4b';
+    };
+    
+    recognition.onerror = () => {
+        document.getElementById('mic-icon').style.background = '#ff4b4b';
+    };
+    </script>
+    <div class="mic-container">
+        <button class="mic-btn" id="mic-icon" onclick="startListening()">🎤</button>
+    </div>
+""", height=100)
+
+# Прием данных из голоса
+if 'voice_input' not in st.session_state:
+    st.session_state.voice_input = ""
+
+# 3. Загрузка данных
 @st.cache_data(ttl=600)
 def load_data():
     url = "https://docs.google.com/spreadsheets/d/1nualyTma75WZ4eZlVuPEPMDqz94qmCx5blby-9tZCOU/export?format=csv"
@@ -73,61 +91,78 @@ def load_data():
         df['d_id'] = pd.to_numeric(df['ID отдела'], errors='coerce').fillna(0).astype(int)
     return df
 
+def get_photo(url):
+    placeholder = "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"
+    if pd.isna(url) or str(url).strip() == "": return placeholder
+    match = re.search(r'[-\w]{25,}', str(url))
+    return f"https://lh3.googleusercontent.com/d/{match.group()}" if match else placeholder
+
 try:
     df = load_data()
     
-    # Сайдбар
-    st.sidebar.title("🏢 Подразделения")
-    depts = {
-        "Все": 0, "Администрация": 1, "ВЭД": 2, "Ветпрепараты": 3,
-        "Агропродукты": 4, "Сырье и корма": 5, "Кадры": 6, "Финансы": 7, "Хоз. служба": 8
-    }
-    sel = st.sidebar.radio("Показать:", list(depts.keys()))
-    search = st.text_input("🔍 Поиск по ФИО или должности", "")
+    # Обработка голоса (Джемка слушает)
+    cmd = st.session_state.voice_input
+    if cmd:
+        st.info(f"Слышу команду: {cmd}")
+        # Логика поиска по голосу (примеры)
+        if "вэд" in cmd: st.session_state.page = 2
+        elif "админ" in cmd: st.session_state.page = 1
+        elif "все" in cmd: st.session_state.page = 0
+        st.session_state.voice_input = "" # Сброс
 
-    f_df = df.copy()
-    if depts[sel] != 0:
-        f_df = f_df[f_df['d_id'] == depts[sel]]
-    if search:
-        search_lower = search.lower()
-        f_df = f_df[f_df['Ф.И.О.'].str.lower().str.contains(search_lower) | 
-                    f_df['Должность'].str.lower().str.contains(search_lower)]
+    # Навигация
+    if 'page' not in st.session_state:
+        st.session_state.page = "home"
 
-    if not f_df.empty:
-        f_df = f_df.sort_values('Ф.И.О.')
+    if st.session_state.page == "home":
+        st.title("🧬 Структура КЛМ (Улей)")
+        depts = {
+            "001 Администрация": 1, "002 Отдел ВЭД": 2, "003 Ветпрепараты": 3,
+            "004 Агропродукты": 4, "005 Сырье и корма": 5, "006 Кадры / Право": 6,
+            "007 Финансы": 7, "008 Хоз. служба": 8
+        }
+        
+        st.write("### Выберите отдел или используйте микрофон 🎤")
+        
+        # Отрисовка сот кнопками
+        cols = st.columns(4)
+        for i, (name, d_id) in enumerate(depts.items()):
+            with cols[i % 4]:
+                if st.button(name, use_container_width=True):
+                    st.session_state.page = d_id
+        
+        if st.button("👥 Показать всех сотрудников", type="primary"):
+            st.session_state.page = 0
+
+    else:
+        # Экран отдела/сотрудников
+        if st.button("← Назад в Улей"):
+            st.session_state.page = "home"
+            st.rerun()
+
+        current_id = st.session_state.page
+        f_df = df if current_id == 0 else df[df['d_id'] == current_id]
+        
+        st.subheader(f"Сотрудники ({len(f_df)})")
+        
+        search = st.text_input("🔍 Быстрый поиск", "")
+        if search:
+            f_df = f_df[f_df['Ф.И.О.'].str.lower().str.contains(search.lower())]
+
+        # Сетка карточек
         for i in range(0, len(f_df), 4):
             cols = st.columns(4)
             batch = f_df.iloc[i:i+4]
             for j, (_, emp) in enumerate(batch.iterrows()):
                 with cols[j]:
-                    p_val = emp.get('Тел. Личный') if pd.notnull(emp.get('Тел. Личный')) else emp.get('Тел. Рабочий')
-                    phone = "".join(filter(str.isdigit, str(p_val)))
-                    
-                    btns = ""
-                    if len(phone) > 5:
-                        clean_p = f"+{phone}" if not phone.startswith('375') else phone
-                        btns += f'<a href="tel:{clean_p}" class="btn b-call">📞 Позвонить</a>'
-                        btns += f'<a href="https://wa.me/{phone}" class="btn b-wa" target="_blank">💬 WhatsApp</a>'
-                        btns += f'<a href="https://t.me/+{phone}" class="btn b-tg" target="_blank">✈️ Telegram</a>'
-                    else:
-                        btns += '<div class="btn b-none">Нет номера</div><div class="btn b-none">—</div><div class="btn b-none">—</div>'
-
-                    email = emp.get('E-mail')
-                    if pd.notnull(email) and "@" in str(email):
-                        btns += f'<a href="mailto:{email}" class="btn b-mail">✉️ Почта</a>'
-                    else:
-                        btns += '<div class="btn b-none">Нет почты</div>'
-
                     st.markdown(f"""
                     <div class="card">
                         <img src="{get_photo(emp.get('Фото'))}" class="img-circle">
-                        <div class="name">{emp.get('Ф.И.О.', '---')}</div>
-                        <div class="job">{emp.get('Должность', '-')}</div>
-                        {btns}
+                        <div style="font-weight:bold; height:40px;">{emp.get('Ф.И.О.')}</div>
+                        <div style="font-size:12px; color:gray; margin-bottom:10px;">{emp.get('Должность')}</div>
+                        <a href="tel:{emp.get('Тел. Личный')}" style="display:block; background:#007bff; color:white; padding:8px; border-radius:5px; text-decoration:none; margin-bottom:5px;">📞 Звонок</a>
                     </div>
                     """, unsafe_allow_html=True)
-    else:
-        st.info("Никого не нашли.")
 
 except Exception as e:
-    st.error(f"Техническая ошибка: {e}")
+    st.error(f"Улей временно недоступен: {e}")
