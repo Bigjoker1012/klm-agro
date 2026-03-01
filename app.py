@@ -4,18 +4,16 @@ import re
 
 st.set_page_config(page_title="КЛМ Справочник", layout="wide")
 
-# Тюнинг интерфейса: плотная верстка и маленькие фото
+# CSS: Убираем пустые ряды сверху и фиксируем размер заглушек
 st.markdown("""
     <style>
     .stApp { background-color: #f4f7f9; }
-    /* Карточка сотрудника без лишних отступов */
     .employee-card {
         background-color: white; border-radius: 12px; padding: 15px;
         border: 1px solid #e0e0e0; text-align: center;
         box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-        margin-top: 0px !important;
+        margin-bottom: 20px;
     }
-    /* Кнопки-контакты */
     .contact-btn {
         display: block; padding: 8px; color: white !important;
         text-decoration: none; border-radius: 6px; margin-top: 5px; 
@@ -26,11 +24,12 @@ st.markdown("""
     .btn-tg { background-color: #0088cc; }
     .btn-mail { background-color: #6c757d; }
     
-    /* Уменьшаем фото в 2 раза */
+    /* Уменьшаем заглушки в 2 раза и центрируем */
     .stImage img {
-        max-width: 120px !important;
-        margin-left: auto;
-        margin-right: auto;
+        max-width: 100px !important;
+        height: auto !important;
+        margin: 0 auto;
+        display: block;
         border-radius: 50%;
     }
     </style>
@@ -48,17 +47,17 @@ SHEET_URL = "https://docs.google.com/spreadsheets/d/1nualyTma75WZ4eZlVuPEPMDqz94
 def load_data():
     df = pd.read_csv(SHEET_URL)
     df.columns = [str(c).strip() for c in df.columns]
+    # ЖЕСТКАЯ ОЧИСТКА ID: всё в целые числа, потом в строки
     if 'ID отдела' in df.columns:
-        # Приводим к формату '5', '7' и т.д. без нулей и точек
-        df['dept_id'] = df['ID отдела'].astype(str).str.replace(r'\.0$', '', regex=True).str.lstrip('0').str.strip()
+        df['dept_match'] = pd.to_numeric(df['ID отдела'], errors='coerce').fillna(0).astype(int).astype(str)
     return df
 
 try:
     df = load_data()
     
-    # Легенда в сайдбаре
     st.sidebar.header("🏢 Подразделения")
-    depts = {
+    # Список отделов (числа должны совпадать с колонкой E в таблице)
+    depts_map = {
         "Все отделы": "all",
         "001 Администрация": "1",
         "002 Отдел ВЭД": "2",
@@ -69,36 +68,37 @@ try:
         "007 Финансы": "7",
         "008 Хоз. служба": "8"
     }
-    selected_dept = st.sidebar.radio("Показать:", list(depts.keys()))
+    selected_dept = st.sidebar.radio("Показать:", list(depts_map.keys()))
     
     st.title("🧬 Справочник КЛМ")
     search = st.text_input("🔍 Поиск по ФИО или должности", "")
 
-    # Фильтрация
+    # Фильтрация по отделу
     f_df = df.copy()
-    if depts[selected_dept] != "all":
-        f_df = f_df[f_df['dept_id'] == depts[selected_dept]]
+    if depts_map[selected_dept] != "all":
+        f_df = f_df[f_df['dept_match'] == depts_map[selected_dept]]
     
+    # Фильтрация по поиску
     if search:
         f_df = f_df[f_df.apply(lambda x: x.astype(str).str.lower().str.contains(search.lower())).any(axis=1)]
 
-    # Сетка без пустых верхних рядов
+    # Вывод карточек
     if not f_df.empty:
         f_df = f_df.sort_values('Ф.И.О.')
         cols = st.columns(4)
         for i, (_, emp) in enumerate(f_df.iterrows()):
             with cols[i % 4]:
-                # Все данные теперь в одном контейнере без разрывов
                 st.markdown('<div class="employee-card">', unsafe_allow_html=True)
                 
-                # Компактное фото
+                # Фото-заглушка (уменьшенная)
                 img_url = fix_drive_url(emp.get('Фото'))
-                st.image(img_url, use_container_width=False, width=120)
+                st.image(img_url, use_container_width=False, width=100)
                 
+                # Данные
                 st.markdown(f"**{emp.get('Ф.И.О.', '---')}**")
                 st.markdown(f"<div style='font-size: 12px; color: gray; height: 35px;'>{emp.get('Должность', '-')}</div>", unsafe_allow_html=True)
                 
-                # Кнопки контактов
+                # Кнопки
                 p_val = emp.get('Тел. Личный') if pd.notnull(emp.get('Тел. Личный')) else emp.get('Тел. Рабочий')
                 phone = "".join(filter(str.isdigit, str(p_val)))
                 
@@ -114,7 +114,7 @@ try:
                 
                 st.markdown('</div>', unsafe_allow_html=True)
     else:
-        st.info("Никого не нашли.")
+        st.info("Никого не нашли. Проверь фильтр слева.")
 
 except Exception as e:
-    st.error(f"Ошибка: {e}")
+    st.error(f"Ошибка в коде: {e}")
