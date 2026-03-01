@@ -4,29 +4,32 @@ import re
 
 st.set_page_config(page_title="КЛМ Справочник", layout="wide")
 
-# CSS стили
+# CSS: Жесткая фиксация 4-х кнопок и размеров
 st.markdown("""
     <style>
     .stApp { background-color: #f4f7f9; }
     .employee-card {
-        background-color: white; border-radius: 15px; padding: 20px;
+        background-color: white; border-radius: 12px; padding: 15px;
         border: 1px solid #e0e0e0; text-align: center;
         box-shadow: 0 4px 10px rgba(0,0,0,0.05);
         margin-bottom: 20px;
+        min-height: 420px; /* Фикс высоты всей карточки */
     }
     .contact-btn {
-        display: block; padding: 10px; color: white !important;
-        text-decoration: none; border-radius: 8px; margin-top: 8px; 
-        font-size: 14px; font-weight: bold; text-align: center;
+        display: block; padding: 8px; color: white !important;
+        text-decoration: none; border-radius: 6px; margin-top: 6px; 
+        font-size: 13px; font-weight: bold; text-align: center;
+        height: 35px; line-height: 20px;
     }
     .btn-call { background-color: #007bff; }
     .btn-wa { background-color: #28a745; }
     .btn-tg { background-color: #0088cc; }
     .btn-mail { background-color: #6c757d; }
+    .btn-empty { background-color: #e9ecef; color: #adb5bd !important; cursor: default; }
     
     .stImage img {
-        width: 110px !important;
-        height: 110px !important;
+        width: 120px !important;
+        height: 120px !important;
         object-fit: cover;
         margin: 0 auto;
         border-radius: 50%;
@@ -37,29 +40,20 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 def fix_drive_url(url):
-    if pd.isna(url):
+    if pd.isna(url) or 'drive.google.com' not in str(url):
         return "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"
     
-    url_str = str(url).strip()
-    
-    # Если это уже прямая ссылка, оставляем как есть
-    if 'drive.google.com/uc?' in url_str:
-        return url_str
-        
-    # Ищем ID файла (длинный код из букв и цифр)
-    match = re.search(r'[-\w]{25,}', url_str)
+    # Извлекаем ID файла
+    match = re.search(r'[-\w]{25,}', str(url))
     if match:
         file_id = match.group()
-        # Генерируем прямую ссылку для отображения картинки
-        return f"https://drive.google.com/uc?export=view&id={file_id}"
-    
+        # Альтернативный линк для обхода блокировок превью
+        return f"https://lh3.googleusercontent.com/d/{file_id}"
     return "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"
 
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1nualyTma75WZ4eZlVuPEPMDqz94qmCx5blby-9tZCOU/export?format=csv"
-
-# Убрали кэш на время отладки фото (ttl=0), чтобы данные всегда были свежие
 @st.cache_data(ttl=0) 
 def load_data():
+    SHEET_URL = "https://docs.google.com/spreadsheets/d/1nualyTma75WZ4eZlVuPEPMDqz94qmCx5blby-9tZCOU/export?format=csv"
     df = pd.read_csv(SHEET_URL)
     df.columns = [str(c).strip() for c in df.columns]
     if 'ID отдела' in df.columns:
@@ -69,7 +63,6 @@ def load_data():
 try:
     df = load_data()
     
-    # Фильтры в сайдбаре
     st.sidebar.header("🏢 Подразделения")
     depts_map = {
         "Все отделы": "all",
@@ -101,36 +94,39 @@ try:
             with cols[i % 4]:
                 st.markdown('<div class="employee-card">', unsafe_allow_html=True)
                 
-                # Фото
-                raw_photo_link = emp.get('Фото')
-                img_url = fix_drive_url(raw_photo_link)
+                # 1. ФОТО
+                img_url = fix_drive_url(emp.get('Фото'))
+                st.image(img_url, width=120)
                 
-                # Выводим картинку
-                st.image(img_url, width=110)
-                
-                # Имя и должность
+                # 2. ИНФО
                 st.markdown(f"**{emp.get('Ф.И.О.', '---')}**")
-                st.markdown(f"<div style='font-size: 11px; color: gray; height: 30px;'>{emp.get('Должность', '-')}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='font-size: 11px; color: gray; height: 35px; overflow: hidden;'>{emp.get('Должность', '-')}</div>", unsafe_allow_html=True)
                 
-                # Контакты
+                # 3. КНОПКИ (Всегда 4 штуки)
                 p_val = emp.get('Тел. Личный') if pd.notnull(emp.get('Тел. Личный')) else emp.get('Тел. Рабочий')
                 phone = "".join(filter(str.isdigit, str(p_val)))
                 
                 if len(phone) > 5:
-                    clean_phone = f"+{phone}" if not str(phone).startswith('+') else phone
                     wa_phone = phone if phone.startswith('375') else '375' + phone[1:] if phone.startswith('80') else phone
-                    
-                    st.markdown(f'<a href="tel:{clean_phone}" class="contact-btn btn-call">📞 Позвонить</a>', unsafe_allow_html=True)
+                    st.markdown(f'<a href="tel:+{phone}" class="contact-btn btn-call">📞 Позвонить</a>', unsafe_allow_html=True)
                     st.markdown(f'<a href="https://wa.me/{wa_phone}" target="_blank" class="contact-btn btn-wa">💬 WhatsApp</a>', unsafe_allow_html=True)
                     st.markdown(f'<a href="https://t.me/+{phone}" target="_blank" class="contact-btn btn-tg">✈️ Telegram</a>', unsafe_allow_html=True)
-                
+                else:
+                    # Если телефона нет, рисуем пустые заглушки кнопок для симметрии
+                    st.markdown('<div class="contact-btn btn-empty">Нет номера</div>', unsafe_allow_html=True)
+                    st.markdown('<div class="contact-btn btn-empty">---</div>', unsafe_allow_html=True)
+                    st.markdown('<div class="contact-btn btn-empty">---</div>', unsafe_allow_html=True)
+
+                # Кнопка почты (4-я кнопка)
                 email = emp.get('E-mail')
                 if pd.notnull(email) and "@" in str(email):
                     st.markdown(f'<a href="mailto:{email}" class="contact-btn btn-mail">✉️ Почта</a>', unsafe_allow_html=True)
+                else:
+                    st.markdown('<div class="contact-btn btn-empty">Нет почты</div>', unsafe_allow_html=True)
                 
                 st.markdown('</div>', unsafe_allow_html=True)
     else:
         st.info("Сотрудники не найдены.")
 
 except Exception as e:
-    st.error(f"Ошибка загрузки данных: {e}")
+    st.error(f"Ошибка: {e}")
