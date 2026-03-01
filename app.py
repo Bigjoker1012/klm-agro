@@ -1,79 +1,82 @@
 import streamlit as st
 import pandas as pd
 
-# Настройка страницы
 st.set_page_config(page_title="КЛМ Справочник", layout="wide")
 
-# Функция для конвертации ссылок Google Drive в прямые ссылки на картинки
 def fix_drive_url(url):
     if pd.isna(url) or 'drive.google.com' not in str(url):
         return "https://via.placeholder.com/150?text=No+Photo"
-    file_id = url.split('/')[-2] if '/view' in url else url.split('=')[-1]
-    return f"https://drive.google.com/uc?export=view&id={file_id}"
+    try:
+        file_id = url.split('/')[-2] if '/view' in url else url.split('=')[-1]
+        return f"https://drive.google.com/uc?export=view&id={file_id}"
+    except:
+        return "https://via.placeholder.com/150?text=Error"
 
-# 1. Подключаемся к твоей таблице
+# Твоя ссылка
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1nualyTma75WZ4eZlVuPEPMDqz94qmCx5blby-9tZCOU/export?format=csv"
 
-@st.cache_data(ttl=600) # Обновлять данные каждые 10 минут
+@st.cache_data(ttl=60)
 def load_data():
-    return pd.read_csv(SHEET_URL)
+    df = pd.read_csv(SHEET_URL)
+    df.columns = df.columns.str.strip() # Чистим пробелы в названиях
+    return df
 
 try:
     df = load_data()
     
     st.title("🧬 Интерактивный Справочник КЛМ")
-    st.write("Привет, Андрюша! Твоя база на 56 человек готова к работе.")
+    
+    search = st.text_input("🔍 Поиск по Ф.И.О., должности или ID отдела", "").lower()
 
-    # 2. Поиск
-    search = st.text_input("🔍 Кого ищем? (Имя, должность или ID отдела)", "").lower()
-
-    # Фильтрация
     if search:
         mask = df.apply(lambda x: x.astype(str).str.lower().str.contains(search)).any(axis=1)
         display_df = df[mask]
     else:
         display_df = df
 
-    # 3. Рисуем сетку
-    cols = st.columns(4) # 4 колонки в ряд
+    cols = st.columns(4)
 
     for i, (_, row) in enumerate(display_df.iterrows()):
         with cols[i % 4]:
             with st.container(border=True):
-                # Фото сотрудника
-                img_url = fix_drive_url(row['Фото'])
+                # Пробуем найти фото (если колонка называется "Фото")
+                img_url = fix_drive_url(row.get('Фото', ''))
                 st.image(img_url, use_container_width=True)
                 
-                # Данные
-                st.subheader(f"{row['Фамилия']} {row['Имя']}")
-                st.info(f"📍 {row['Должность']}")
+                # Работаем с твоими названиями колонок
+                st.subheader(row.get('Ф.И.О.', 'Сотрудник'))
+                st.info(f"📍 {row.get('Должность', '-')}")
+                st.caption(f"🆔 Отдел: {row.get('ID отдела', '-')}")
                 
                 # Кнопки связи
-                phone = str(row['Личный телефон']).replace(" ", "").replace("-", "")
+                phone = str(row.get('Тел. Личный', '')).replace(" ", "").replace("-", "")
                 
-                c1, c2, c3 = st.columns(3)
+                if phone and phone != 'nan':
+                    c1, c2, c3 = st.columns(3)
+                    # Прямой звонок
+                    c1.markdown(f"[📞](tel:{phone})")
+                    # WhatsApp (убираем + для ссылки)
+                    wa_phone = phone.replace('+', '')
+                    c2.markdown(f"[💬](https://web.whatsapp.com/send?phone={wa_phone})")
+                    # Telegram
+                    c3.markdown(f"[✈️](https://t.me/{phone})")
                 
-                # Прямой вызов
-                c1.markdown(f"[📞](tel:{phone})", help="Позвонить")
-                
-                # WhatsApp Web
-                c2.markdown(f"[💬](https://web.whatsapp.com/send?phone={phone.replace('+', '')})", help="WhatsApp")
-                
-                # Telegram
-                # Если в будущем добавишь колонку 'TG', заменим phone на ник
-                c3.markdown(f"[✈️](https://t.me/{phone})", help="Telegram")
-                
-                if pd.notnull(row['E-mail']):
-                    st.write(f"✉️ {row['E-mail']}")
+                email = row.get('E-mail', '')
+                if pd.notnull(email) and email != 'nan':
+                    st.write(f"✉️ {email}")
 
 except Exception as e:
-    st.error(f"Ой! Что-то не так с таблицей. Проверь доступ. Ошибка: {e}")
+    st.error(f"Ошибка в данных: {e}")
 
-# Легенда в боковой панели
+# ТВОЯ ПРАВИЛЬНАЯ ЛЕГЕНДА
 st.sidebar.header("🏢 Подразделения")
 st.sidebar.markdown("""
-- **001**: Руководство
-- **002**: ВЭД
-- **005**: Транспорт
-- **008**: Хоз. служба
+- **001**: Администрация
+- **002**: Отдел ВЭД
+- **003**: Отдел ветпрепаратов
+- **004**: Отдел агропродуктов
+- **005**: Отдел сырья и кормов
+- **006**: Правовая и кадровая работа
+- **007**: Финансово-экономический
+- **008**: Адм.-хозяйственная служба
 """)
