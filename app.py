@@ -5,42 +5,45 @@ import re
 # 1. Настройка страницы
 st.set_page_config(page_title="Справочник КЛМ", layout="wide")
 
-# Улучшенный CSS: индивидуальные цвета и фиксированные стили
+# CSS для настоящих цветных кнопок с ЧИТАЕМЫМ текстом
 st.markdown("""
     <style>
     .stApp { background-color: #f8f9fa; }
     
-    /* Стилизация КНОПОК-СОТ с привязкой к тексту (чтобы не были только синими) */
+    /* Стилизация КНОПОК-ОТДЕЛОВ */
     div.stButton > button {
-        height: 100px !important; border-radius: 15px !important;
-        color: white !important; font-weight: bold !important; font-size: 18px !important;
-        border: none !important; transition: 0.3s !important;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1) !important;
+        height: 90px !important; border-radius: 15px !important;
+        font-weight: bold !important; font-size: 16px !important;
+        color: #1a1a1a !important; /* ЧЕРНЫЙ ТЕКСТ */
+        border: 2px solid rgba(0,0,0,0.05) !important;
+        transition: 0.3s !important;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05) !important;
     }
     
-    /* Красим по конкретным отделам */
-    div.stButton > button:contains("Администрация") { background: linear-gradient(135deg, #2c3e50, #4ca1af) !important; }
-    div.stButton > button:contains("ВЭД") { background: linear-gradient(135deg, #11998e, #38ef7d) !important; }
-    div.stButton > button:contains("Ветпрепараты") { background: linear-gradient(135deg, #ff9966, #ff5e62) !important; }
-    div.stButton > button:contains("Агропродукты") { background: linear-gradient(135deg, #56ab2f, #a8e063) !important; }
-    div.stButton > button:contains("Сырье") { background: linear-gradient(135deg, #4b6cb7, #182848) !important; }
-    div.stButton > button:contains("Кадры") { background: linear-gradient(135deg, #00b4db, #0083b0) !important; }
-    div.stButton > button:contains("Финансы") { background: linear-gradient(135deg, #f2994a, #f2c94c) !important; }
-    div.stButton > button:contains("Хоз. служба") { background: linear-gradient(135deg, #8e44ad, #c0392b) !important; }
+    /* Индивидуальные фоновые цвета (пастельные, чтобы текст был виден) */
+    div.stButton > button[key*="d_1"] { background-color: #d1d8e0 !important; } /* Админ */
+    div.stButton > button[key*="d_2"] { background-color: #b8e994 !important; } /* ВЭД */
+    div.stButton > button[key*="d_3"] { background-color: #fab1a0 !important; } /* Вет */
+    div.stButton > button[key*="d_4"] { background-color: #ffeaa7 !important; } /* Агро */
+    div.stButton > button[key*="d_5"] { background-color: #81ecec !important; } /* Корма */
+    div.stButton > button[key*="d_6"] { background-color: #74b9ff !important; } /* Кадры */
+    div.stButton > button[key*="d_7"] { background-color: #ffda79 !important; } /* Фин */
+    div.stButton > button[key*="d_8"] { background-color: #a29bfe !important; } /* Хоз */
 
-    /* Кнопка НАЗАД (белая с рамкой) */
-    .st-key-back_top > button, .st-key-back_bot > button {
-        background: white !important; color: #333 !important; border: 1px solid #ccc !important; height: 50px !important;
+    /* Кнопки Назад (Светлые) */
+    div.stButton > button[key*="back"] {
+        background-color: #ffffff !important; height: 45px !important; color: #333 !important;
     }
 
+    /* Карточки сотрудников */
     .card {
         background: white; border-radius: 15px; padding: 15px;
         box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center;
-        margin-bottom: 20px; border: 1px solid #e1e4e8; min-height: 420px;
+        margin-bottom: 20px; border: 1px solid #e1e4e8; min-height: 380px;
     }
     .img-circle {
         width: 100px; height: 100px; border-radius: 50%;
-        object-fit: cover; margin: 0 auto 10px auto; border: 3px solid #eee;
+        object-fit: cover; margin: 0 auto 10px auto; border: 2px solid #007bff;
     }
     .btn-comm {
         display: block; width: 100%; padding: 10px 0; margin-top: 5px;
@@ -75,26 +78,25 @@ try:
     st.markdown("<h2 style='text-align: center;'>Справочник КЛМ</h2>", unsafe_allow_html=True)
 
     # ПОИСК
-    search_query = st.text_input("🔍 Поиск...", placeholder="Кого ищем?", key="search_main")
+    search_q = st.text_input("🔍 Поиск...", placeholder="Кого найти?", key="search_box")
 
-    if search_query:
-        # Логика поиска
-        f_df = df[df['Ф.И.О.'].str.lower().str.contains(search_query.lower(), na=False) | 
-                  df['Должность'].str.lower().str.contains(search_query.lower(), na=False)]
+    if search_q:
+        f_df = df[df['Ф.И.О.'].str.lower().str.contains(search_q.lower(), na=False) | 
+                  df['Должность'].str.lower().str.contains(search_q.lower(), na=False)]
         
         if not f_df.empty:
             cols = st.columns(4)
             for i, (_, emp) in enumerate(f_df.iterrows()):
                 with cols[i % 4]:
-                    # ПРИОРИТЕТ ТЕЛЕФОНА: Рабочий -> Личный
+                    # Приоритет рабочего телефона
                     p_val = emp.get('Тел. Рабочий') if pd.notnull(emp.get('Тел. Рабочий')) and str(emp.get('Тел. Рабочий')).strip() != "" else emp.get('Тел. Личный')
                     phone = "".join(filter(str.isdigit, str(p_val)))
-                    st.markdown(f'<div class="card"><img src="{get_photo(emp.get("Фото"))}" class="img-circle"><div style="font-weight:bold;height:45px;">{emp.get("Ф.И.О.")}</div><div style="font-size:12px;color:gray;height:40px;">{emp.get("Должность")}</div><a href="tel:+{phone}" class="btn-comm b-call">📞 Позвонить</a></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="card"><img src="{get_photo(emp.get("Фото"))}" class="img-circle"><div style="font-weight:bold;">{emp.get("Ф.И.О.")}</div><div style="font-size:12px;color:gray;">{emp.get("Должность")}</div><br><a href="tel:+{phone}" class="btn-comm b-call">📞 Позвонить</a></div>', unsafe_allow_html=True)
         
-        if st.button("✖ Вернуться к отделам", key="reset_search"):
+        if st.button("✖ Сбросить поиск", key="back_from_search"):
             st.rerun()
 
-    # ГЛАВНЫЙ ЭКРАН
+    # СОТЫ
     elif st.session_state.page == "home":
         depts = [
             ("🏢 Администрация", 1), ("🌍 Отдел ВЭД", 2), ("💊 Ветпрепараты", 3), ("🚜 Агропродукты", 4),
@@ -108,10 +110,9 @@ try:
                         st.session_state.page = d_id
                         st.rerun()
 
-    # СТРАНИЦА ОТДЕЛА
+    # СПИСОК ОТДЕЛА
     else:
-        # Кнопка НАЗАД СВЕРХУ
-        if st.button("← Назад к сотам", key="back_top"):
+        if st.button("← Назад к отделам", key="back_up"):
             st.session_state.page = "home"
             st.rerun()
 
@@ -119,10 +120,8 @@ try:
         cols = st.columns(4)
         for i, (_, emp) in enumerate(f_df.iterrows()):
             with cols[i % 4]:
-                # ЛОГИКА ТЕЛЕФОНОВ: Только рабочий, если он есть
                 work_p = emp.get('Тел. Рабочий')
                 priv_p = emp.get('Тел. Личный')
-                
                 final_p = work_p if pd.notnull(work_p) and str(work_p).strip() != "" else priv_p
                 phone = "".join(filter(str.isdigit, str(final_p)))
                 
@@ -131,13 +130,12 @@ try:
                     btns += f'<a href="https://wa.me/{phone}" class="btn-comm b-wa" target="_blank">💬 WhatsApp</a>'
                     btns += f'<a href="https://t.me/+{phone}" class="btn-comm b-tg" target="_blank">✈️ Telegram</a>'
                 
-                st.markdown(f'<div class="card"><img src="{get_photo(emp.get("Фото"))}" class="img-circle"><div style="font-weight:bold;height:40px;">{emp.get("Ф.И.О.")}</div><div style="font-size:11px;color:gray;height:35px;">{emp.get("Должность")}</div>{btns}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="card"><img src="{get_photo(emp.get("Фото"))}" class="img-circle"><div style="font-weight:bold;min-height:40px;">{emp.get("Ф.И.О.")}</div><div style="font-size:11px;color:gray;min-height:35px;">{emp.get("Должность")}</div>{btns}</div>', unsafe_allow_html=True)
 
-        # Кнопка НАЗАД СНИЗУ (для удобства листания)
-        st.write("---")
-        if st.button("← Назад к сотам", key="back_bot", use_container_width=True):
+        st.markdown("---")
+        if st.button("← Назад к отделам", key="back_down", use_container_width=True):
             st.session_state.page = "home"
             st.rerun()
 
 except Exception as e:
-    st.error(f"Ошибка: {e}")
+    st.error(f"Упс! Что-то пошло не так: {e}")
