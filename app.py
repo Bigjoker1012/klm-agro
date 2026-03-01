@@ -5,33 +5,48 @@ import re
 # 1. Настройка страницы
 st.set_page_config(page_title="Справочник КЛМ", layout="wide")
 
-# CSS для настоящих цветных "Сот" и фиксации интерфейса
+# CSS для цветных плиток и карточек
 st.markdown("""
     <style>
     .stApp { background-color: #f8f9fa; }
     
-    /* Стилизация ввода поиска */
-    .stTextInput > div > div > input {
-        border-radius: 25px; border: 2px solid #007bff; padding: 12px 20px;
+    /* Стилизация плиток отделов (СОТЫ) */
+    .dept-tile {
+        display: flex; align-items: center; justify-content: center;
+        height: 100px; border-radius: 15px; color: white !important;
+        font-weight: bold; font-size: 18px; text-align: center;
+        margin-bottom: 15px; cursor: pointer; transition: 0.3s;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.15); border: none;
+        text-decoration: none !important;
     }
+    .dept-tile:hover { transform: scale(1.02); filter: brightness(1.1); }
+    
+    /* Цвета отделов */
+    .c-1 { background: linear-gradient(135deg, #1e3c72, #2a5298); } /* Админ */
+    .c-2 { background: linear-gradient(135deg, #11998e, #38ef7d); } /* ВЭД */
+    .c-3 { background: linear-gradient(135deg, #ff9966, #ff5e62); } /* Вет */
+    .c-4 { background: linear-gradient(135deg, #56ab2f, #a8e063); } /* Агро */
+    .c-5 { background: linear-gradient(135deg, #4b6cb7, #182848); } /* Корма */
+    .c-6 { background: linear-gradient(135deg, #00b4db, #0083b0); } /* Кадры */
+    .c-7 { background: linear-gradient(135deg, #f2994a, #f2c94c); } /* Фин */
+    .c-8 { background: linear-gradient(135deg, #8e44ad, #c0392b); } /* Хоз */
 
     /* Карточки сотрудников */
     .card {
         background: white; border-radius: 15px; padding: 15px;
         box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center;
         margin-bottom: 20px; border: 1px solid #e1e4e8; min-height: 420px;
-        display: flex; flex-direction: column;
     }
     .img-circle {
         width: 100px; height: 100px; border-radius: 50%;
-        object-fit: cover; margin: 0 auto 10px auto; border: 3px solid #007bff;
+        object-fit: cover; margin: 0 auto 10px auto; border: 3px solid #eee;
     }
     
-    /* Кнопки мессенджеров */
+    /* Кнопки связи */
     .btn-comm {
         display: block; width: 100%; padding: 10px 0; margin-top: 5px;
         border-radius: 8px; font-size: 13px; font-weight: 600;
-        text-decoration: none !important; color: white !important; text-align: center;
+        text-decoration: none !important; color: white !important;
     }
     .b-call { background-color: #007bff; }
     .b-wa { background-color: #28a745; }
@@ -57,66 +72,55 @@ def get_photo(url):
 try:
     df = load_data()
     
-    # Инициализация состояний
+    # Состояния
     if 'page' not in st.session_state: st.session_state.page = "home"
-    if 'search_val' not in st.session_state: st.session_state.search_val = ""
+    if 'search' not in st.session_state: st.session_state.search = ""
 
-    st.markdown("<h1 style='text-align: center;'>Справочник КЛМ</h1>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center;'>Справочник КЛМ</h2>", unsafe_allow_html=True)
 
-    # ПОИСК НА ГЛАВНОЙ
-    search_query = st.text_input("Поиск сотрудника", value=st.session_state.search_val, 
-                                 placeholder="Введите фамилию или должность...", label_visibility="collapsed")
+    # 2. ПОИСК
+    search_query = st.text_input("🔍 Поиск...", value=st.session_state.search, key="search_input")
 
-    # ЛОГИКА: Если что-то введено в поиск - показываем результат
+    # Если в поиске что-то есть - показываем только поиск
     if search_query:
         f_df = df[df['Ф.И.О.'].str.lower().str.contains(search_query.lower()) | 
                   df['Должность'].str.lower().str.contains(search_query.lower())]
         
         if not f_df.empty:
-            st.success(f"Найдено: {len(f_df)}")
             cols = st.columns(4)
             for i, (_, emp) in enumerate(f_df.iterrows()):
                 with cols[i % 4]:
                     p_val = emp.get('Тел. Личный') if pd.notnull(emp.get('Тел. Личный')) else emp.get('Тел. Рабочий')
                     phone = "".join(filter(str.isdigit, str(p_val)))
-                    st.markdown(f"""
-                        <div class="card">
-                            <img src="{get_photo(emp.get('Фото'))}" class="img-circle">
-                            <div style="font-weight:bold; height:45px;">{emp.get('Ф.И.О.')}</div>
-                            <div style="font-size:12px; color:gray; height:40px;">{emp.get('Должность')}</div>
-                            <a href="tel:+{phone}" class="btn-comm b-call">📞 Позвонить</a>
-                        </div>
-                    """, unsafe_allow_html=True)
-        else:
-            st.warning("Ничего не найдено")
+                    st.markdown(f'<div class="card"><img src="{get_photo(emp.get("Фото"))}" class="img-circle"><div style="font-weight:bold;height:45px;">{emp.get("Ф.И.О.")}</div><div style="font-size:12px;color:gray;height:40px;">{emp.get("Должность")}</div><a href="tel:+{phone}" class="btn-comm b-call">📞 Позвонить</a></div>', unsafe_allow_html=True)
         
-        if st.button("✖ Сбросить поиск и вернуться к сотам"):
-            st.session_state.search_val = ""
+        if st.button("✖ Очистить и вернуться к сотам"):
+            st.session_state.search = ""
+            st.session_state.page = "home"
             st.rerun()
 
-    # ГЛАВНЫЙ ЭКРАН (ЦВЕТНОЙ УЛЕЙ)
+    # 3. ГЛАВНЫЙ ЭКРАН (ЦВЕТНЫЕ ПЛИТКИ)
     elif st.session_state.page == "home":
-        st.write("### Структура компании:")
-        
-        # Список отделов с привязкой к ID
         depts = [
             ("🏢 Администрация", 1), ("🌍 Отдел ВЭД", 2), ("💊 Ветпрепараты", 3), ("🚜 Агропродукты", 4),
             ("🌾 Сырье и корма", 5), ("⚖️ Кадры / Право", 6), ("💰 Финансы", 7), ("🛠️ Хоз. служба", 8)
         ]
         
-        # Создаем сетку 2x4 (как соты)
-        for row in range(0, len(depts), 4):
-            cols = st.columns(4)
-            for i, (name, d_id) in enumerate(depts[row:row+4]):
-                with cols[i]:
-                    # Используем type="primary" для раскраски
-                    if st.button(name, key=f"btn_{d_id}", use_container_width=True, type="primary"):
-                        st.session_state.page = d_id
-                        st.rerun()
+        cols = st.columns(4)
+        for i, (name, d_id) in enumerate(depts):
+            with cols[i % 4]:
+                # Используем кликабельные HTML блоки для цвета
+                if st.button(name, key=f"d_{d_id}", use_container_width=True):
+                    st.session_state.page = d_id
+                    st.rerun()
+                # Принудительная раскраска кнопки через CSS селектор
+                st.markdown(f'<style>div[data-testid="stButton"] button[key="d_{d_id}"] {{ border: 2px solid #eee; }} </style>', unsafe_allow_html=True)
+                # Костыль для цвета - рисуем цветную плашку под кнопкой для индикации
+                st.markdown(f'<div class="dept-tile c-{d_id}">{name}</div>', unsafe_allow_html=True)
 
-    # СТРАНИЦА КОНКРЕТНОГО ОТДЕЛА
+    # 4. ОТДЕЛ
     else:
-        if st.button("← Назад к разделам"):
+        if st.button("← Назад к сотам"):
             st.session_state.page = "home"
             st.rerun()
 
@@ -127,7 +131,6 @@ try:
                 p_val = emp.get('Тел. Личный') if pd.notnull(emp.get('Тел. Личный')) else emp.get('Тел. Рабочий')
                 phone = "".join(filter(str.isdigit, str(p_val)))
                 
-                # Кнопки связи
                 btns = f'<a href="tel:+{phone}" class="btn-comm b-call">📞 Позвонить</a>'
                 if len(phone) > 5:
                     btns += f'<a href="https://wa.me/{phone}" class="btn-comm b-wa" target="_blank">💬 WhatsApp</a>'
@@ -143,4 +146,4 @@ try:
                 """, unsafe_allow_html=True)
 
 except Exception as e:
-    st.error(f"Произошла ошибка: {e}")
+    st.error(f"Ошибка: {e}")
