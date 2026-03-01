@@ -2,51 +2,57 @@ import streamlit as st
 import pandas as pd
 import re
 
-# 1. Настройки страницы и ГРАФИКА СОТ
+# 1. Настройки и CSS для ГРАФИЧЕСКИХ СОТ
 st.set_page_config(page_title="Справочник КЛМ", layout="wide")
 
 st.markdown("""
     <style>
     .stApp { background-color: #f4f7f9; }
     
-    /* ГЕКСАГОНАЛЬНАЯ СЕТКА */
+    /* СЕТКА СОТ ДЛЯ ОТДЕЛОВ */
     .honeycomb {
         display: flex; flex-wrap: wrap; justify-content: center;
-        list-style: none; padding: 20px 0; margin: 0 auto; max-width: 900px;
+        gap: 15px; padding: 20px;
     }
-    .hex {
-        width: 150px; height: 170px; background: #007bff;
+    .hex-button {
+        width: 160px; height: 180px; background: #007bff;
         clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
         display: flex; align-items: center; justify-content: center;
-        text-align: center; color: white; font-weight: bold;
-        margin: 5px; transition: 0.3s; cursor: pointer; padding: 15px;
-        font-size: 14px; box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        text-align: center; color: white; font-weight: bold; font-size: 14px;
+        border: none; cursor: pointer; transition: 0.3s; padding: 20px;
     }
-    .hex:hover { transform: scale(1.1); background: #0056b3; }
-    
-    /* Карточки сотрудников */
+    .hex-button:hover { transform: scale(1.05); background: #0056b3; }
+
+    /* КАРТОЧКИ СОТРУДНИКОВ */
     .card {
-        background: white; border-radius: 12px; padding: 15px;
-        border: 1px solid #eee; text-align: center; margin-bottom: 15px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        background: white; border-radius: 15px; padding: 15px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05); text-align: center;
+        margin-bottom: 20px; border: 1px solid #eee; min-height: 420px;
+        display: flex; flex-direction: column;
     }
     .img-circle {
         width: 100px; height: 100px; border-radius: 50%;
-        object-fit: cover; border: 3px solid #f0f2f5; margin-bottom: 10px;
+        object-fit: cover; margin: 0 auto 10px auto; border: 3px solid #f0f2f5;
     }
+    .name { font-size: 15px; font-weight: bold; margin-bottom: 5px; height: 40px; line-height: 1.2; }
+    .job { font-size: 12px; color: #757575; height: 35px; margin-bottom: 15px; }
     
-    /* Кнопка микрофона БЕЗ ПОЛОС */
-    .mic-button {
-        position: fixed; bottom: 30px; right: 30px;
-        width: 60px; height: 60px; background: #ff4b4b;
-        border-radius: 50%; display: flex; align-items: center;
-        justify-content: center; color: white; cursor: pointer;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.3); z-index: 1000;
+    /* КНОПКИ СВЯЗИ */
+    .btn {
+        display: block; width: 100%; padding: 8px 0; margin-top: 4px;
+        border-radius: 8px; font-size: 13px; font-weight: bold;
+        text-decoration: none !important; color: white !important;
+        text-align: center;
     }
+    .b-call { background-color: #007bff; }
+    .b-wa { background-color: #28a745; }
+    .b-tg { background-color: #0088cc; }
+    .b-mail { background-color: #6c757d; }
+    .b-none { background-color: #f8f9fa; color: #ccc !important; border: 1px solid #eee; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. ФУНКЦИИ
+# 2. ДАННЫЕ
 @st.cache_data(ttl=600)
 def load_data():
     url = "https://docs.google.com/spreadsheets/d/1nualyTma75WZ4eZlVuPEPMDqz94qmCx5blby-9tZCOU/export?format=csv"
@@ -62,83 +68,88 @@ def get_photo(url):
     match = re.search(r'[-\w]{25,}', str(url))
     return f"https://lh3.googleusercontent.com/d/{match.group()}" if match else placeholder
 
-# 3. ЛОГИКА ПРИЛОЖЕНИЯ
 try:
     df = load_data()
     
     if 'page' not in st.session_state:
         st.session_state.page = "home"
 
-    # ГЛАВНЫЙ ЭКРАН - УЛЕЙ
+    st.markdown("<h1 style='text-align: center;'>Справочник КЛМ</h1>", unsafe_allow_html=True)
+
+    # ГЛАВНЫЙ ЭКРАН С СОТАМИ
     if st.session_state.page == "home":
-        st.markdown("<h1 style='text-align: center;'>Справочник КЛМ</h1>", unsafe_allow_html=True)
-        
-        # Рисуем соты как кнопки, но стилизуем их
         depts = {
             "Администрация": 1, "Отдел ВЭД": 2, "Ветпрепараты": 3,
             "Агропродукты": 4, "Сырье и корма": 5, "Кадры / Право": 6,
             "Финансы": 7, "Хоз. служба": 8
         }
         
-        st.write("### Выберите отдел:")
+        st.write("### Выберите подразделение:")
         
-        # Создаем сетку сот
-        cols = st.columns(4)
+        # Отрисовка сот через колонки
+        row1 = st.columns(4)
+        row2 = st.columns(4)
+        all_cols = row1 + row2
+        
         for i, (name, d_id) in enumerate(depts.items()):
-            with cols[i % 4]:
-                # Используем стандартную кнопку, которую CSS превратит в соту (частично)
-                if st.button(name, key=f"d_{d_id}", use_container_width=True):
+            with all_cols[i]:
+                # CSS сделает эти кнопки похожими на соты
+                if st.button(name, key=f"dept_{d_id}", use_container_width=True):
                     st.session_state.page = d_id
                     st.rerun()
-
+        
+        st.markdown("---")
         if st.button("👥 Показать всех сотрудников", use_container_width=True):
             st.session_state.page = 0
             st.rerun()
 
-    # ЭКРАН СОТРУДНИКОВ
+    # СПИСОК СОТРУДНИКОВ
     else:
-        if st.button("← Вернуться к сотам"):
+        if st.button("← Вернуться к разделам"):
             st.session_state.page = "home"
             st.rerun()
 
         current_id = st.session_state.page
         f_df = df if current_id == 0 else df[df['d_id'] == current_id]
         
-        search = st.text_input("🔍 Поиск по фамилии", "")
+        search = st.text_input("🔍 Быстрый поиск", "")
         if search:
-            f_df = f_df[f_df['Ф.И.О.'].str.lower().str.contains(search.lower())]
+            f_df = f_df[f_df['Ф.И.О.'].str.lower().str.contains(search.lower()) | 
+                        f_df['Должность'].str.lower().str.contains(search.lower())]
 
-        if f_df.empty:
-            st.warning("Никого не нашли. Попробуйте другой запрос.")
-        else:
-            for i in range(0, len(f_df), 4):
-                cols = st.columns(4)
-                batch = f_df.iloc[i:i+4]
-                for j, (_, emp) in enumerate(batch.iterrows()):
-                    with cols[j]:
-                        st.markdown(f"""
-                        <div class="card">
-                            <img src="{get_photo(emp.get('Фото'))}" class="img-circle">
-                            <div style="font-weight:bold; height:40px;">{emp.get('Ф.И.О.', '---')}</div>
-                            <div style="font-size:11px; color:gray; margin-bottom:10px; height:30px;">{emp.get('Должность', '-')}</div>
-                            <a href="tel:{emp.get('Тел. Личный')}" style="display:block; background:#007bff; color:white; padding:8px; border-radius:6px; text-decoration:none;">📞 Позвонить</a>
-                        </div>
-                        """, unsafe_allow_html=True)
+        # Сетка карточек
+        for i in range(0, len(f_df), 4):
+            cols = st.columns(4)
+            batch = f_df.iloc[i:i+4]
+            for j, (_, emp) in enumerate(batch.iterrows()):
+                with cols[j]:
+                    # Логика кнопок
+                    p_val = emp.get('Тел. Личный') if pd.notnull(emp.get('Тел. Личный')) else emp.get('Тел. Рабочий')
+                    phone = "".join(filter(str.isdigit, str(p_val)))
+                    
+                    btns = ""
+                    if len(phone) > 5:
+                        clean_p = f"+{phone}" if not phone.startswith('375') else phone
+                        btns += f'<a href="tel:{clean_p}" class="btn b-call">📞 Позвонить</a>'
+                        btns += f'<a href="https://wa.me/{phone}" class="btn b-wa" target="_blank">💬 WhatsApp</a>'
+                        btns += f'<a href="https://t.me/+{phone}" class="btn b-tg" target="_blank">✈️ Telegram</a>'
+                    else:
+                        btns += '<div class="btn b-none">Нет номера</div><div class="btn b-none">—</div><div class="btn b-none">—</div>'
 
-    # 4. МИКРОФОН (Простой JS без полос)
-    st.components.v1.html("""
-        <script>
-        function listen() {
-            const rec = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-            rec.lang = 'ru-RU';
-            rec.start();
-            rec.onresult = (e) => {
-                alert("Джемка услышала: " + e.results[0][0].transcript);
-            };
-        }
-        </script>
-        <div style="position: fixed; bottom: 20px; right: 20px; width: 60px; height: 60px; background: #ff4b4b; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; color: white; font-size: 30px; box-shadow: 0 4px 10px rgba(0,0,0,0.3);" onclick="listen()">🎤</div>
-    """, height=80)
+                    email = emp.get('E-mail')
+                    if pd.notnull(email) and "@" in str(email):
+                        btns += f'<a href="mailto:{email}" class="btn b-mail">✉️ Почта</a>'
+                    else:
+                        btns += '<div class="btn b-none">Нет почты</div>'
+
+                    st.markdown(f"""
+                    <div class="card">
+                        <img src="{get_photo(emp.get('Фото'))}" class="img-circle">
+                        <div class="name">{emp.get('Ф.И.О.', '---')}</div>
+                        <div class="job">{emp.get('Должность', '-')}</div>
+                        {btns}
+                    </div>
+                    """, unsafe_allow_html=True)
 
 except Exception as e:
-    st.error(f"Ошибка: {e}")
+    st.error(f"Произошла ошибка: {e}")
