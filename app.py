@@ -2,29 +2,21 @@ import streamlit as st
 import pandas as pd
 import re
 
-# 1. Настройка страницы
 st.set_page_config(page_title="Справочник КЛМ", layout="wide")
 
-# 2. Жёсткий CSS для раскраски кнопок
+# ЖЕСТКИЙ CSS ДЛЯ ЦВЕТОВ И КНОПОК
 st.markdown("""
     <style>
-    /* Фон приложения */
     .stApp { background-color: #f8f9fa; }
     
-    /* Общий стиль для всех кнопок отделов */
+    /* Стилизация кнопок отделов (Градиенты) */
     div.stButton > button {
-        height: 100px !important;
-        border-radius: 15px !important;
-        font-weight: bold !important;
-        font-size: 20px !important;
-        color: white !important;
-        border: none !important;
+        height: 100px !important; border-radius: 15px !important;
+        font-weight: bold !important; font-size: 18px !important;
+        color: white !important; border: none !important;
         box-shadow: 0 4px 10px rgba(0,0,0,0.15) !important;
-        margin-bottom: 10px !important;
     }
-
-    /* Раскрашиваем каждую кнопку по очереди (nth-of-type) */
-    /* Важно: считаем только кнопки отделов в сетке */
+    /* Индивидуальная раскраска */
     div.stButton:nth-of-type(1) > button { background: linear-gradient(135deg, #2c3e50, #4ca1af) !important; }
     div.stButton:nth-of-type(2) > button { background: linear-gradient(135deg, #11998e, #38ef7d) !important; }
     div.stButton:nth-of-type(3) > button { background: linear-gradient(135deg, #ff9966, #ff5e62) !important; }
@@ -34,29 +26,25 @@ st.markdown("""
     div.stButton:nth-of-type(7) > button { background: linear-gradient(135deg, #f2994a, #f2c94c) !important; }
     div.stButton:nth-of-type(8) > button { background: linear-gradient(135deg, #8e44ad, #c0392b) !important; }
 
-    /* Кнопки возврата и сброса (делаем их скромнее) */
-    .st-key-back_up > button, .st-key-back_down > button, .st-key-reset_btn > button {
-        background: #f1f2f6 !important;
-        color: #2f3542 !important;
-        height: 50px !important;
-        font-size: 16px !important;
-    }
-
-    /* Карточки сотрудников */
-    .emp-card {
-        background: white; border-radius: 15px; padding: 20px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.08); text-align: center;
-        border: 1px solid #eee; margin-bottom: 20px;
+    /* Карточки и кнопки связи */
+    .card {
+        background: white; border-radius: 15px; padding: 15px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center;
+        margin-bottom: 20px; border: 1px solid #e1e4e8; min-height: 440px;
     }
     .img-circle {
-        width: 110px; height: 110px; border-radius: 50%;
-        object-fit: cover; margin-bottom: 15px; border: 3px solid #f0f0f0;
+        width: 100px; height: 100px; border-radius: 50%;
+        object-fit: cover; margin: 0 auto 10px auto; border: 2px solid #007bff;
     }
-    .call-btn {
-        background-color: #007bff; color: white !important;
-        display: block; width: 100%; padding: 12px;
-        border-radius: 10px; font-weight: bold; text-decoration: none !important;
+    .comm-btn {
+        display: block; width: 100%; padding: 8px 0; margin-top: 5px;
+        border-radius: 8px; font-size: 13px; font-weight: 600;
+        text-decoration: none !important; color: white !important;
     }
+    .b-call { background-color: #007bff; }
+    .b-wa { background-color: #28a745; }
+    .b-tg { background-color: #0088cc; }
+    .b-mail { background-color: #6c757d; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -79,46 +67,41 @@ try:
     df = load_data()
     if 'page' not in st.session_state: st.session_state.page = "home"
 
-    st.markdown("<h1 style='text-align: center;'>Справочник КЛМ</h1>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center;'>Справочник КЛМ</h2>", unsafe_allow_html=True)
 
-    # 1. ПОИСК
-    search_q = st.text_input("🔍 Поиск сотрудника", placeholder="Начните вводить фамилию...", key="search_input")
+    # ПОИСК
+    search_query = st.text_input("🔍 Поиск сотрудника", placeholder="Кого ищем?", key="search_input")
 
-    if search_q:
-        results = df[df['Ф.И.О.'].str.lower().str.contains(search_q.lower(), na=False) | 
-                     df['Должность'].str.lower().str.contains(search_q.lower(), na=False)]
+    if search_query:
+        f_df = df[df['Ф.И.О.'].str.lower().str.contains(search_query.lower(), na=False) | 
+                  df['Должность'].str.lower().str.contains(search_query.lower(), na=False)]
         
-        if not results.empty:
+        if not f_df.empty:
             cols = st.columns(4)
-            for i, (_, emp) in enumerate(results.iterrows()):
+            for i, (_, emp) in enumerate(f_df.iterrows()):
                 with cols[i % 4]:
-                    # Логика приоритета рабочего телефона
-                    work_phone = str(emp.get('Тел. Рабочий', '')).strip()
-                    priv_phone = str(emp.get('Тел. Личный', '')).strip()
-                    final_phone = work_phone if work_phone not in ["nan", ""] else priv_phone
-                    clean_phone = "".join(filter(str.isdigit, final_phone))
+                    # Логика приоритета телефона
+                    w_p, l_p = str(emp.get('Тел. Рабочий', '')), str(emp.get('Тел. Личный', ''))
+                    final_p = w_p if w_p not in ["nan", ""] else l_p
+                    clean_p = "".join(filter(str.isdigit, final_p))
+                    mail = str(emp.get('E-mail', '')).strip()
                     
-                    st.markdown(f"""
-                        <div class="emp-card">
-                            <img src="{get_photo(emp.get('Фото'))}" class="img-circle">
-                            <div style="font-weight:bold; font-size:16px;">{emp.get('Ф.И.О.')}</div>
-                            <div style="color:gray; font-size:13px; margin-bottom:15px;">{emp.get('Должность')}</div>
-                            <a href="tel:+{clean_phone}" class="call-btn">📞 Позвонить</a>
-                        </div>
-                    """, unsafe_allow_html=True)
-        
-        if st.button("✖ Сбросить поиск", key="reset_btn", use_container_width=True):
-            st.rerun()
+                    btns = f'<a href="tel:+{clean_p}" class="comm-btn b-call">📞 Позвонить</a>'
+                    if len(clean_p) > 5:
+                        btns += f'<a href="https://wa.me/{clean_p}" class="comm-btn b-wa" target="_blank">💬 WhatsApp</a>'
+                        btns += f'<a href="https://t.me/+{clean_p}" class="comm-btn b-tg" target="_blank">✈️ Telegram</a>'
+                    if mail != "nan" and mail != "":
+                        btns += f'<a href="mailto:{mail}" class="comm-btn b-mail">✉️ Почта</a>'
 
-    # 2. ГЛАВНЫЙ ЭКРАН (ТОЛЬКО КНОПКИ)
-    elif st.session_state.page == "home":
-        st.markdown("### Выберите отдел:")
-        depts = [
-            ("Администрация", 1), ("Отдел ВЭД", 2), ("Ветпрепараты", 3), ("Агропродукты", 4),
-            ("Сырье и корма", 5), ("Кадры / Право", 6), ("Финансы", 7), ("Хоз. служба", 8)
-        ]
+                    st.markdown(f'<div class="card"><img src="{get_photo(emp.get("Фото"))}" class="img-circle"><div style="font-weight:bold;min-height:45px;">{emp.get("Ф.И.О.")}</div><div style="font-size:12px;color:gray;min-height:35px;">{emp.get("Должность")}</div>{btns}</div>', unsafe_allow_html=True)
         
-        # Сетка 2 ряда по 4 кнопки
+        if st.button("✖ Сбросить поиск", key="reset"): st.rerun()
+
+    # ГЛАВНЫЙ ЭКРАН
+    elif st.session_state.page == "home":
+        st.write("### Выберите подразделение:")
+        depts = [("Администрация", 1), ("Отдел ВЭД", 2), ("Ветпрепараты", 3), ("Агропродукты", 4),
+                 ("Сырье и корма", 5), ("Кадры / Право", 6), ("Финансы", 7), ("Хоз. служба", 8)]
         for r in range(0, 8, 4):
             cols = st.columns(4)
             for i, (name, d_id) in enumerate(depts[r:r+4]):
@@ -127,34 +110,34 @@ try:
                         st.session_state.page = d_id
                         st.rerun()
 
-    # 3. СПИСОК ОТДЕЛА
+    # СПИСОК ОТДЕЛА
     else:
         if st.button("← Назад к отделам", key="back_up", use_container_width=True):
             st.session_state.page = "home"
             st.rerun()
 
-        dept_df = df[df['d_id'] == st.session_state.page]
+        f_df = df[df['d_id'] == st.session_state.page]
         cols = st.columns(4)
-        for i, (_, emp) in enumerate(dept_df.iterrows()):
+        for i, (_, emp) in enumerate(f_df.iterrows()):
             with cols[i % 4]:
-                work_p = str(emp.get('Тел. Рабочий', '')).strip()
-                priv_p = str(emp.get('Тел. Личный', '')).strip()
-                phone = work_p if work_p not in ["nan", ""] else priv_p
+                w_p, l_p = str(emp.get('Тел. Рабочий', '')), str(emp.get('Тел. Личный', ''))
+                phone = w_p if w_p not in ["nan", ""] else l_p
                 clean_p = "".join(filter(str.isdigit, phone))
+                mail = str(emp.get('E-mail', '')).strip()
                 
-                st.markdown(f"""
-                    <div class="emp-card">
-                        <img src="{get_photo(emp.get('Фото'))}" class="img-circle">
-                        <div style="font-weight:bold;">{emp.get('Ф.И.О.')}</div>
-                        <div style="color:gray; font-size:12px; margin-bottom:10px;">{emp.get('Должность')}</div>
-                        <a href="tel:+{clean_p}" class="call-btn">📞 Позвонить</a>
-                    </div>
-                """, unsafe_allow_html=True)
+                btns = f'<a href="tel:+{clean_p}" class="comm-btn b-call">📞 Позвонить</a>'
+                if len(clean_p) > 5:
+                    btns += f'<a href="https://wa.me/{clean_p}" class="comm-btn b-wa" target="_blank">💬 WhatsApp</a>'
+                    btns += f'<a href="https://t.me/+{clean_p}" class="comm-btn b-tg" target="_blank">✈️ Telegram</a>'
+                if mail != "nan" and mail != "":
+                    btns += f'<a href="mailto:{mail}" class="comm-btn b-mail">✉️ Почта</a>'
+
+                st.markdown(f'<div class="card"><img src="{get_photo(emp.get("Фото"))}" class="img-circle"><div style="font-weight:bold;min-height:45px;">{emp.get("Ф.И.О.")}</div><div style="font-size:12px;color:gray;min-height:35px;">{emp.get("Должность")}</div>{btns}</div>', unsafe_allow_html=True)
 
         st.markdown("---")
-        if st.button("← Вернуться к выбору отдела", key="back_down", use_container_width=True):
+        if st.button("← Вернуться к сотам", key="back_down", use_container_width=True):
             st.session_state.page = "home"
             st.rerun()
 
 except Exception as e:
-    st.error(f"Ошибка: {e}")
+    st.error(f"Упс: {e}")
